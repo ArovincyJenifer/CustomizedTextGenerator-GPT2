@@ -1,0 +1,44 @@
+import gradio as gr
+from transformers import GPT2Tokenizer, GPT2LMHeadModel, GPT2Config
+from safetensors.torch import load_file
+import torch
+
+# Load fine-tuned model and tokenizer
+model_dir = "./fine_tuned_model/runs"
+tokenizer = GPT2Tokenizer.from_pretrained(model_dir)
+
+# Load the model configuration
+config = GPT2Config.from_pretrained(model_dir)
+
+# Load the model weights from safetensor file
+model_path = f"{model_dir}/model.safetensor"
+state_dict = load_file(model_path)
+
+# Initialize the model with the loaded configuration
+model = GPT2LMHeadModel(config)
+
+# Check and add 'lm_head.weight' to the state dictionary if missing
+if 'lm_head.weight' not in state_dict:
+    state_dict['lm_head.weight'] = model.lm_head.weight
+
+# Load the state dictionary into the model
+model.load_state_dict(state_dict)
+
+# Function to generate text
+def generate_text(prompt):
+    inputs = tokenizer.encode(prompt, return_tensors='pt')
+    outputs = model.generate(inputs, max_length=200, num_return_sequences=1)
+    generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return generated_text
+
+# Gradio interface
+interface = gr.Interface(
+    fn=generate_text,
+    inputs=gr.Textbox(lines=2, placeholder="Enter prompt here..."),
+    outputs=gr.Textbox(),
+    title="Custom GPT-2 Text Generation",
+    description="Enter a prompt and the model will generate text based on your fine-tuned model."
+)
+
+if __name__ == "__main__":
+    interface.launch()
